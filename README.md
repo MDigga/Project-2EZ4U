@@ -1,4 +1,4 @@
-# 2EZ4U APP - Engine Backend Layanan Antar Makanan
+# 2EZ4U APP
 
 Proyek ini merupakan project dari mata kuliah struktur data dan algoritma dengan menggunakan bahasa Python tanpa memanfaatkan fungsi atau struktur data bawaan seperti dict, set, sorted(), .sort(), heapq, atau modul collections. Sistem ini dirancang untuk simulasi pemrosesan pesanan berkapasitas besar hingga 200.000 data.
 
@@ -11,11 +11,11 @@ Proyek ini merupakan project dari mata kuliah struktur data dan algoritma dengan
 ## Analisis Algoritma - M1
 
 -Fitur / Operasi,Fixed Array,Singly Linked List
-Lihat Pesanan 
-Tambah Reguler
-Tambah Prioritas 
-Tambah VIP 
-Hapus Pesanan 
+|Lihat Pesanan
+|Tambah Reguler
+|Tambah Prioritas  
+|Tambah VIP 
+|Hapus Pesanan 
 
 ## Batasan
 
