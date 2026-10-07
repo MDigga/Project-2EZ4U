@@ -4,7 +4,7 @@ Proyek ini merupakan project dari mata kuliah struktur data dan algoritma dengan
 
 ## Ringkasan Modul Backend
 
-### Modul 1: Pengelolaan Pesanan (Fixed Array vs Linked List)
+### M1: Pengelolaan Pesanan 
 * **Fixed Array**: Implementasi array berukuran tetap (fixed capacity) yang dialokasikan sejak awal tanpa mekanisme alokasi ulang atau perbesaran kapasitas (resizing). Jika kapasitas penuh, sistem akan menolak data baru dengan melempar OverflowError. Mendukung penyisipan pesanan Reguler di posisi belakang, Prioritas di tengah, dan VIP di posisi paling depan dengan pergeseran elemen O(n).
 * **Singly Linked List**: Implementasi senarai berantai menggunakan pointer head dan tail. Menawarkan keunggulan penyisipan VIP di posisi paling depan dengan kompleksitas waktu konstan O(1).
 
