@@ -11,11 +11,12 @@ Proyek ini merupakan project dari mata kuliah struktur data dan algoritma dengan
 ## Analisis Algoritma - M1
 
 -Fitur / Operasi,Fixed Array,Singly Linked List
-|Lihat Pesanan
-|Tambah Reguler
-|Tambah Prioritas  
-|Tambah VIP 
-|Hapus Pesanan 
+
+1.Lihat Pesanan
+2.Tambah Reguler
+3.Tambah Prioritas  
+4.Tambah VIP 
+5.Hapus Pesanan 
 
 ## Batasan
 
