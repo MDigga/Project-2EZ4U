@@ -1,6 +1,5 @@
 import sys
 import os
-# Memastikan direktori root masuk ke sys.path agar modul backend bisa diimpor
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import tkinter as tk
@@ -24,7 +23,6 @@ class MainAppWindow(tk.Tk):
         main_paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # --- LEFT FRAME: MENU ---
         left_frame = ttk.Frame(main_paned, width=300)
         main_paned.add(left_frame, weight=1)
 
@@ -57,14 +55,18 @@ class MainAppWindow(tk.Tk):
             "STACK - Redo",
             "QUEUE - Enqueue",
             "QUEUE - Dequeue Naif",
-            "QUEUE - Dequeue Circular"
+            "QUEUE - Dequeue Circular",
+            "--- M3: SORT & SEARCH ---",
+            "SORT - Insertion Sort",
+            "SORT - Merge Sort",
+            "SEARCH - Linear Search",
+            "SEARCH - Binary Search"
         ]
         for m in menus:
             self.menu_listbox.insert(tk.END, m)
 
         self.menu_listbox.bind("<<ListboxSelect>>", self.on_menu_select)
 
-        # --- RIGHT FRAME: CONTENT ---
         right_container = ttk.Frame(main_paned)
         main_paned.add(right_container, weight=4)
 
@@ -74,7 +76,6 @@ class MainAppWindow(tk.Tk):
         self.content_frame = ttk.Frame(right_paned)
         right_paned.add(self.content_frame, weight=3)
 
-        # --- BOTTOM FRAME: COMMAND LOG ---
         bottom_frame = ttk.Labelframe(right_paned, text="COMMAND")
         right_paned.add(bottom_frame, weight=1)
 
@@ -141,20 +142,39 @@ class MainAppWindow(tk.Tk):
             self.show_queue_dequeue("naif")
         elif "QUEUE - Dequeue Circular" in val:
             self.show_queue_dequeue("circular")
+        elif "SORT - Insertion Sort" in val:
+            self.show_sort("insertion")
+        elif "SORT - Merge Sort" in val:
+            self.show_sort("merge")
+        elif "SEARCH - Linear Search" in val:
+            self.show_search("linear")
+        elif "SEARCH - Binary Search" in val:
+            self.show_search("binary")
 
     def show_view_pesanan(self, jenis):
         lbl = ttk.Label(self.content_frame, text=f"M1: Lihat Pesanan ({jenis})", font=("Arial", 12, "bold"))
         lbl.pack(anchor=tk.W, padx=10, pady=5)
 
+        control_frame = ttk.Frame(self.content_frame)
+        control_frame.pack(anchor=tk.W, padx=10, pady=5)
+
+        source = self.array_pesanan if jenis == "Array" else self.linked_pesanan
+        total_data = len(source)
+        page_size = 1000
+        current_page = [0]
+
+        info_page_lbl = ttk.Label(control_frame, text="", font=("Arial", 10, "bold"))
+        info_page_lbl.pack(side=tk.LEFT, padx=5)
+
         sub_frame = ttk.Frame(self.content_frame)
         sub_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         cols = ("No", "OID", "Pelanggan", "Resto", "Menu", "Harga", "Prioritas", "Status")
-        tree = ttk.Treeview(sub_frame, columns=cols, show="headings", height=20)
+        tree = ttk.Treeview(sub_frame, columns=cols, show="headings", height=18)
         for c in cols:
             tree.heading(c, text=c)
             tree.column(c, width=100, anchor=tk.W)
-        tree.column("No", width=50)
+        tree.column("No", width=60)
         tree.column("Harga", width=80)
         tree.column("Prioritas", width=60)
 
@@ -163,15 +183,40 @@ class MainAppWindow(tk.Tk):
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        t0 = time.perf_counter()
-        source = self.array_pesanan if jenis == "Array" else self.linked_pesanan
-        max_show = min(100, len(source))
-        for i in range(max_show):
-            p = source.get(i)
-            tree.insert("", tk.END, values=(i+1, p.oid, p.pelanggan, p.resto, p.menu, f"Rp {p.harga:,}", p.prioritas, p.status))
-        t1 = time.perf_counter()
-        elapsed = (t1 - t0) * 1000
-        self.log_command(f"Menampilkan {max_show} pesanan pertama dari {jenis}.", f"M1 - {jenis}", elapsed)
+        def load_page():
+            for row in tree.get_children():
+                tree.delete(row)
+            
+            start_idx = current_page[0] * page_size
+            end_idx = min(start_idx + page_size, total_data)
+
+            t0 = time.perf_counter()
+            for i in range(start_idx, end_idx):
+                p = source.get(i)
+                tree.insert("", tk.END, values=(i+1, p.oid, p.pelanggan, p.resto, p.menu, f"Rp {p.harga:,}", p.prioritas, p.status))
+            t1 = time.perf_counter()
+            elapsed = (t1 - t0) * 1000
+
+            info_page_lbl.config(text=f"Menampilkan data {start_idx+1:,} - {end_idx:,} dari {total_data:,} pesanan")
+            self.log_command(f"Menampilkan halaman {current_page[0]+1} (indeks {start_idx+1}-{end_idx}) dari {jenis}.", f"M1 - {jenis}", elapsed)
+
+        def next_page():
+            if (current_page[0] + 1) * page_size < total_data:
+                current_page[0] += 1
+                load_page()
+
+        def prev_page():
+            if current_page[0] > 0:
+                current_page[0] -= 1
+                load_page()
+
+        btn_prev = ttk.Button(control_frame, text="< Sebelumnya", command=prev_page)
+        btn_prev.pack(side=tk.LEFT, padx=5)
+
+        btn_next = ttk.Button(control_frame, text="Selanjutnya >", command=next_page)
+        btn_next.pack(side=tk.LEFT, padx=5)
+
+        load_page()
 
     def show_tambah_pesanan(self, struktur_jenis, prioritas_val, prioritas_nama):
         lbl = ttk.Label(self.content_frame, text=f"{struktur_jenis}: Tambah Pesanan {prioritas_nama}", font=("Arial", 12, "bold"))
@@ -445,3 +490,151 @@ class MainAppWindow(tk.Tk):
                 messagebox.showerror("Error", str(e))
 
         ttk.Button(form_frame, text="DEQUEUE", command=do_dequeue).grid(row=1, column=1, sticky=tk.W, pady=10)
+
+    def show_sort(self, jenis):
+        nama_sort = "Insertion Sort (O(n^2))" if jenis == "insertion" else "Merge Sort (O(n log n))"
+        lbl = ttk.Label(self.content_frame, text=f"M3: Sort - {nama_sort}", font=("Arial", 12, "bold"))
+        lbl.pack(anchor=tk.W, padx=10, pady=5)
+
+        form_frame = ttk.Frame(self.content_frame)
+        form_frame.pack(anchor=tk.W, padx=10, pady=10)
+
+        ttk.Label(form_frame, text="Jumlah baris diurutkan:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        e_n = ttk.Entry(form_frame, width=15)
+        e_n.grid(row=0, column=1, pady=2)
+        e_n.insert(0, "1000")
+
+        ttk.Label(form_frame, text="Diurutkan menurut:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        combo_kunci = ttk.Combobox(form_frame, values=["harga", "oid", "selesai"], width=15, state="readonly")
+        combo_kunci.grid(row=1, column=1, pady=2)
+        combo_kunci.set("harga")
+
+        res_lbl = ttk.Label(self.content_frame, text="", font=("Arial", 10, "bold"))
+        res_lbl.pack(anchor=tk.W, padx=10, pady=5)
+
+        sub_frame = ttk.Frame(self.content_frame)
+        sub_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        cols = ("No", "OID", "Harga", "Selesai", "Resto", "Menu")
+        tree = ttk.Treeview(sub_frame, columns=cols, show="headings", height=15)
+        for c in cols:
+            tree.heading(c, text=c)
+            tree.column(c, width=100, anchor=tk.W)
+
+        scrollbar = ttk.Scrollbar(sub_frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def do_sort():
+            for row in tree.get_children():
+                tree.delete(row)
+            try:
+                n = int(e_n.get())
+                kunci = combo_kunci.get()
+                
+                data_copy = []
+                limit = min(n, len(self.array_pesanan))
+                for i in range(limit):
+                    data_copy.append(self.array_pesanan.get(i))
+
+                t0 = time.perf_counter()
+                from backend import m3_Sort_search
+                if jenis == "insertion":
+                    sorted_data, comps, moves = m3_Sort_search.insertion_sort(data_copy, kunci)
+                else:
+                    sorted_data, comps, moves = m3_Sort_search.merge_sort(data_copy, kunci)
+                t1 = time.perf_counter()
+                elapsed = (t1 - t0) * 1000
+
+                res_lbl.config(text=f"{len(sorted_data)} pesanan diurutkan menurut {kunci}.\n{comps:,} perbandingan, {moves:,} pemindahan.")
+                self.log_command(f"{nama_sort} ({n} baris, kunci {kunci}): {comps:,} perbandingan", f"M3 - {jenis}", elapsed)
+
+                max_show = min(100, len(sorted_data))
+                for i in range(max_show):
+                    p = sorted_data[i]
+                    selesai_str = str(p.t_selesai_detik) if p.t_selesai_detik else "-"
+                    tree.insert("", tk.END, values=(i+1, p.oid, f"Rp {p.harga:,}", selesai_str, p.resto, p.menu))
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+        ttk.Button(form_frame, text="URUTKAN", command=do_sort).grid(row=2, column=1, sticky=tk.W, pady=10)
+
+    def show_search(self, jenis):
+        nama_search = "Linear Search (O(n))" if jenis == "linear" else "Binary Search (O(log n))"
+        lbl = ttk.Label(self.content_frame, text=f"M3: Search - {nama_search}", font=("Arial", 12, "bold"))
+        lbl.pack(anchor=tk.W, padx=10, pady=5)
+
+        form_frame = ttk.Frame(self.content_frame)
+        form_frame.pack(anchor=tk.W, padx=10, pady=10)
+
+        ttk.Label(form_frame, text="Nomor Pesanan (OID):").grid(row=0, column=0, sticky=tk.W, pady=2)
+        e_oid = ttk.Entry(form_frame, width=25)
+        e_oid.grid(row=0, column=1, pady=2)
+        e_oid.insert(0, "O-137442")
+
+        res_lbl = ttk.Label(self.content_frame, text="", font=("Arial", 10, "bold"))
+        res_lbl.pack(anchor=tk.W, padx=10, pady=5)
+
+        sub_frame = ttk.Frame(self.content_frame)
+        sub_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        cols = ("Kolom", "Isi")
+        tree = ttk.Treeview(sub_frame, columns=cols, show="headings", height=10)
+        tree.heading("Kolom", text="Kolom")
+        tree.heading("Isi", text="Isi")
+        tree.column("Kolom", width=120, anchor=tk.W)
+        tree.column("Isi", width=300, anchor=tk.W)
+
+        scrollbar = ttk.Scrollbar(sub_frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def do_search():
+            for row in tree.get_children():
+                tree.delete(row)
+            try:
+                target = e_oid.get().strip()
+                t0 = time.perf_counter()
+                from backend import m3_Sort_search
+                
+                data_list = []
+                for i in range(len(self.array_pesanan)):
+                    data_list.append(self.array_pesanan.get(i))
+
+                pre_msg = ""
+                if jenis == "linear":
+                    idx, comps = m3_Sort_search.linear_search(data_list, target, "oid")
+                else:
+                    t_sort0 = time.perf_counter()
+                    m3_Sort_search.merge_sort(data_list, "oid")
+                    t_sort1 = time.perf_counter()
+                    sort_time = (t_sort1 - t_sort0) * 1000
+                    pre_msg = f"Daftar terurut oid dibangun dengan merge sort ({sort_time:.2f} ms). "
+                    
+                    idx, comps = m3_Sort_search.binary_search(data_list, target, "oid")
+
+                t1 = time.perf_counter()
+                elapsed = (t1 - t0) * 1000
+
+                if idx != -1:
+                    p = data_list[idx]
+                    res_lbl.config(text=f"{pre_msg}Ditemukan pada indeks {idx:,} ({comps:,} perbandingan).")
+                    self.log_command(f"{nama_search} target '{target}' ketemu ({comps:,} perbandingan)", f"M3 - {jenis}", elapsed)
+                    
+                    tree.insert("", tk.END, values=("oid", p.oid))
+                    tree.insert("", tk.END, values=("pelanggan", p.pelanggan))
+                    tree.insert("", tk.END, values=("resto", p.resto))
+                    tree.insert("", tk.END, values=("menu", p.menu))
+                    tree.insert("", tk.END, values=("harga", f"Rp {p.harga:,}"))
+                    tree.insert("", tk.END, values=("prioritas", p.prioritas))
+                    tree.insert("", tk.END, values=("masuk_detik", p.t_masuk_detik))
+                    tree.insert("", tk.END, values=("status", p.status))
+                else:
+                    res_lbl.config(text=f"{pre_msg}Pesanan dengan OID '{target}' tidak ditemukan ({comps:,} perbandingan).")
+                    self.log_command(f"{nama_search} target '{target}' tidak ditemukan", f"M3 - {jenis}", elapsed)
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+        ttk.Button(form_frame, text="CARI", command=do_search).grid(row=1, column=1, sticky=tk.W, pady=10)
