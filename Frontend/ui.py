@@ -16,6 +16,9 @@ class MainAppWindow(tk.Tk):
         self.array_pesanan = array_pesanan
         self.linked_pesanan = linked_pesanan
         self.manajer = manajer
+        
+        # Penghitung sekuensial agar OID selalu mengurut rapi (200001, 200002, ...)
+        self.next_oid_num = 200001
 
         self._setup_ui()
 
@@ -162,9 +165,7 @@ class MainAppWindow(tk.Tk):
         total_data = len(source)
         page_size = 1000
         current_page = [0]
-
-        info_page_lbl = ttk.Label(control_frame, text="", font=("Arial", 10, "bold"))
-        info_page_lbl.pack(side=tk.LEFT, padx=5)
+        max_pages = max(1, (total_data + page_size - 1) // page_size)
 
         sub_frame = ttk.Frame(self.content_frame)
         sub_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
@@ -183,6 +184,8 @@ class MainAppWindow(tk.Tk):
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
+        info_page_lbl = ttk.Label(control_frame, text="", font=("Arial", 10, "bold"))
+
         def load_page():
             for row in tree.get_children():
                 tree.delete(row)
@@ -197,8 +200,10 @@ class MainAppWindow(tk.Tk):
             t1 = time.perf_counter()
             elapsed = (t1 - t0) * 1000
 
-            info_page_lbl.config(text=f"Menampilkan data {start_idx+1:,} - {end_idx:,} dari {total_data:,} pesanan")
-            self.log_command(f"Menampilkan halaman {current_page[0]+1} (indeks {start_idx+1}-{end_idx}) dari {jenis}.", f"M1 - {jenis}", elapsed)
+            info_page_lbl.config(text=f"Hal {current_page[0]+1}/{max_pages} | Data {start_idx+1:,} - {end_idx:,} dari {total_data:,}")
+            e_page.delete(0, tk.END)
+            e_page.insert(0, str(current_page[0] + 1))
+            self.log_command(f"Menampilkan halaman {current_page[0]+1} dari {jenis}.", f"M1 - {jenis}", elapsed)
 
         def next_page():
             if (current_page[0] + 1) * page_size < total_data:
@@ -210,11 +215,34 @@ class MainAppWindow(tk.Tk):
                 current_page[0] -= 1
                 load_page()
 
+        def jump_page():
+            try:
+                target_p = int(e_page.get()) - 1
+                if 0 <= target_p < max_pages:
+                    current_page[0] = target_p
+                    load_page()
+                else:
+                    messagebox.showerror("Error", f"Masukkan nomor halaman antara 1 dan {max_pages}")
+            except ValueError:
+                messagebox.showerror("Error", "Nomor halaman harus berupa angka bulat.")
+
         btn_prev = ttk.Button(control_frame, text="< Sebelumnya", command=prev_page)
-        btn_prev.pack(side=tk.LEFT, padx=5)
+        btn_prev.pack(side=tk.LEFT, padx=3)
+
+        info_page_lbl.pack(side=tk.LEFT, padx=8)
 
         btn_next = ttk.Button(control_frame, text="Selanjutnya >", command=next_page)
-        btn_next.pack(side=tk.LEFT, padx=5)
+        btn_next.pack(side=tk.LEFT, padx=3)
+
+        ttk.Label(control_frame, text="   Loncat ke Hal:").pack(side=tk.LEFT, padx=2)
+        e_page = ttk.Entry(control_frame, width=6)
+        e_page.pack(side=tk.LEFT, padx=2)
+        
+        # Bind tekan tombol Enter langsung melompat halaman
+        e_page.bind("<Return>", lambda event: jump_page())
+
+        btn_go = ttk.Button(control_frame, text="Go", command=jump_page)
+        btn_go.pack(side=tk.LEFT, padx=2)
 
         load_page()
 
@@ -254,7 +282,10 @@ class MainAppWindow(tk.Tk):
                 resto = e_resto.get()
                 menu = e_menu.get()
                 harga = int(e_harga.get())
-                new_oid = f"0-{len(self.array_pesanan)+1:06d}"
+                
+                self.next_oid_num += 1
+                new_oid = f"0-{self.next_oid_num:06d}"
+                
                 from backend import m1_pesanan
                 p = m1_pesanan.Pesanan(new_oid, pelanggan, resto, menu, harga, prioritas_val, 50000, None, "ANTRE")
 
@@ -274,7 +305,8 @@ class MainAppWindow(tk.Tk):
                     else:
                         self.linked_pesanan.tambah_reguler(p)
                 
-                self.manajer.catat_order(p)
+                target_struktur = self.array_pesanan if struktur_jenis == "Array" else self.linked_pesanan
+                self.manajer.catat_order((p, target_struktur, struktur_jenis))
                 t1 = time.perf_counter()
                 elapsed = (t1 - t0) * 1000
 
@@ -305,11 +337,16 @@ class MainAppWindow(tk.Tk):
                 idx = int(e_idx.get())
                 t0 = time.perf_counter()
                 source = self.array_pesanan if struktur_jenis == "Array" else self.linked_pesanan
-                dihapus = source.hapus(idx)
+                
+                pesanan_dihapus = source.get(idx)
+                source.hapus(idx)
+
+                self.manajer.catat_hapus_m1((pesanan_dihapus, idx, struktur_jenis, source))
+                
                 t1 = time.perf_counter()
                 elapsed = (t1 - t0) * 1000
 
-                result_lbl.config(text=f"Berhasil menghapus: {dihapus}")
+                result_lbl.config(text=f"Berhasil menghapus pesanan {pesanan_dihapus.oid}. (Bisa di-undo melalui menu M2 Undo)")
                 self.log_command(f"Hapus pesanan indeks {idx} di {struktur_jenis}.", f"M1 - {struktur_jenis}", elapsed)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
@@ -423,7 +460,9 @@ class MainAppWindow(tk.Tk):
         def do_enqueue():
             try:
                 from backend import m1_pesanan
-                p = m1_pesanan.Pesanan(f"0-{len(self.array_pesanan)+1:06d}", e_pel.get(), "kafe-teknik", "roti-bakar", 12000, 2, 28800, None, "ANTRE")
+                self.next_oid_num += 1
+                oid_unik = f"0-{self.next_oid_num:06d}"
+                p = m1_pesanan.Pesanan(oid_unik, e_pel.get(), "kafe-teknik", "roti-bakar", 12000, 2, 28800, None, "ANTRE")
                 t0 = time.perf_counter()
                 self.manajer.enqueue(p)
                 t1 = time.perf_counter()
