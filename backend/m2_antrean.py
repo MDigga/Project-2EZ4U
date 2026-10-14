@@ -62,7 +62,6 @@ class Tumpukan:
         self.count = 0
 
     def ke_list(self):
-        """Salinan isi dari dasar ke puncak (untuk ditampilkan)."""
         hasil = [None] * self.count
         for i in range(self.count):
             hasil[i] = self.data[i]
@@ -70,6 +69,7 @@ class Tumpukan:
 
     def __len__(self):
         return self.count
+
 
 def _adalah_operator(t):
     return len(t) == 1 and t in "+-*/"
@@ -82,7 +82,7 @@ def _adalah_kurung(t):
 def _prioritas_op(op):
     if op == "*" or op == "/":
         return 2
-    return 1  # + dan -
+    return 1
 
 
 def tokenisasi(ekspresi):
@@ -154,7 +154,7 @@ def ke_postfix(ekspresi):
     stack = Tumpukan()
     keluaran = []
     langkah = []
-    nomor = [0]  
+    nomor = [0]
 
     def catat(token, tindakan):
         nomor[0] += 1
@@ -172,7 +172,7 @@ def ke_postfix(ekspresi):
                 keluaran.append(stack.pop())
             if stack.kosong():
                 raise ValueError("Kurung tutup tanpa pasangan")
-            stack.pop()  
+            stack.pop()
             catat(tok, "pop sampai ( : *, lalu buang (")
         elif _adalah_operator(tok):
             dikeluarkan = []
@@ -188,7 +188,7 @@ def ke_postfix(ekspresi):
             else:
                 catat(tok, "push " + tok)
         else:
-            _parse_angka(tok) 
+            _parse_angka(tok)
             keluaran.append(tok)
             catat(tok, "operand, langsung ke output")
 
@@ -291,7 +291,6 @@ class AntreanNaif:
         self.count += 1
 
     def dequeue(self):
-        """Ambil indeks 0, lalu geser SEMUA sisa satu langkah ke kiri -> O(n)."""
         if self.count == 0:
             return None
         x = self.data[0]
@@ -341,11 +340,10 @@ class AntreanMelingkar:
         self.K = K
         self.data = [None] * K
         self.front = 0
-        self.rear = 0      
+        self.rear = 0
         self.count = 0
 
     def _tumbuh(self):
-        """Penuh -> kapasitas 2x; isi disalin berurutan dari front, front kembali 0."""
         K_baru = self.K * 2 if self.K > 0 else 8
         baru = [None] * K_baru
         for i in range(self.count):
@@ -363,7 +361,6 @@ class AntreanMelingkar:
         self.count += 1
 
     def dequeue(self):
-        """Hanya front yang maju. Tidak ada elemen yang digeser -> O(1)."""
         if self.count == 0:
             return None
         x = self.data[self.front]
@@ -373,7 +370,7 @@ class AntreanMelingkar:
         return x
 
     def is_empty(self):
-        return self.count == 0 
+        return self.count == 0  
 
     def is_full(self):
         return self.count == self.K
@@ -388,11 +385,10 @@ class AntreanMelingkar:
         return x
 
     def tambah_depan_banyak(self, items):
-        """Kembalikan `items` ke DEPAN antrean (bukan ke belakang!)."""
         n = len(items)
         while self.count + n > self.K:
             self._tumbuh()
-        for j in range(n - 1, -1, -1):  
+        for j in range(n - 1, -1, -1):         
             self.front = (self.front - 1) % self.K
             self.data[self.front] = items[j]
             self.count += 1
@@ -417,14 +413,15 @@ def _oid_dari(p):
 def _deskripsi_aksi(aksi):
     jenis, data, versi = aksi
     if jenis == "ORDER":
-        return "ORDER " + data.oid
+        return "ORDER " + data[0].oid
+    if jenis == "HAPUS_M1":
+        return "HAPUS M1 " + data[0].oid
     if jenis == "ENQUEUE":
         return "ENQUEUE " + data.oid
     return "DEQUEUE x" + str(len(data)) + " (" + versi + ")"
 
 
 class ManajerAntrean:
-
     def __init__(self, capacity=32768):
         self.naif = AntreanNaif(capacity)
         self.melingkar = AntreanMelingkar(capacity)
@@ -443,7 +440,7 @@ class ManajerAntrean:
 
     def _aksi_baru(self, aksi):
         self.undo_stack.push(aksi)
-        self.redo_stack.kosongkan()    
+        self.redo_stack.kosongkan()     
 
     def enqueue(self, pesanan):
         self.naif.enqueue(pesanan)
@@ -468,12 +465,16 @@ class ManajerAntrean:
             keluar.append(x)
         geseran = self.naif.total_geseran - geseran_awal if versi == "naif" else 0
         if len(keluar) > 0:
-            self._aksi_baru(("DEQUEUE", keluar, versi))  
+            self._aksi_baru(("DEQUEUE", keluar, versi))
         return keluar, geseran
 
-    def catat_order(self, pesanan):
-        self._aksi_baru(("ORDER", pesanan, None))
+    def catat_order(self, data_order):
+        self._aksi_baru(("ORDER", data_order, None))
 
+    def catat_hapus_m1(self, data_hapus):
+        self._aksi_baru(("HAPUS_M1", data_hapus, None))
+
+    # ---------- undo / redo ----------
     def undo_last(self):
         if self.undo_stack.kosong():
             return False, "Tidak ada aksi yang bisa dibatalkan."
@@ -487,9 +488,24 @@ class ManajerAntrean:
             self._antrean(versi).tambah_depan_banyak(data)
             pesan = (str(len(data)) + " pesanan dikembalikan ke DEPAN antrean "
                      + versi + ".")
+        elif jenis == "ORDER":
+            pesanan, target_struktur, struktur_jenis = data
+            for i in range(len(target_struktur)):
+                if target_struktur.get(i).oid == pesanan.oid:
+                    target_struktur.hapus(i)
+                    break
+            pesan = f"Penambahan pesanan {pesanan.oid} dibatalkan (dihapus dari {struktur_jenis})."
+        elif jenis == "HAPUS_M1":
+            pesanan, idx, struktur_jenis, target_struktur = data
+            if pesanan.prioritas == 1:
+                target_struktur.tambah_vip(pesanan)
+            elif pesanan.prioritas == 2:
+                target_struktur.tambah_prioritas(pesanan)
+            else:
+                target_struktur.tambah_reguler(pesanan)
+            pesan = f"Pembatalan hapus: Pesanan {pesanan.oid} dikembalikan ke {struktur_jenis}."
         else:
-            data.status = "CANCEL"
-            pesan = "Pesanan " + data.oid + " ditandai CANCEL."
+            pesan = "Aksi tidak dikenal."
         self.redo_stack.push(aksi)
         return True, pesan
 
@@ -508,14 +524,29 @@ class ManajerAntrean:
                 q.dequeue()
             pesan = (str(len(data)) + " pesanan keluar lagi dari antrean "
                      + versi + ".")
-        else:  
-            data.status = "ANTRE"
-            pesan = "Pesanan " + data.oid + " kembali berstatus ANTRE."
+        elif jenis == "ORDER":
+            pesanan, target_struktur, struktur_jenis = data
+            if pesanan.prioritas == 1:
+                target_struktur.tambah_vip(pesanan)
+            elif pesanan.prioritas == 2:
+                target_struktur.tambah_prioritas(pesanan)
+            else:
+                target_struktur.tambah_reguler(pesanan)
+            pesan = f"Pesanan {pesanan.oid} ditambahkan kembali ke {struktur_jenis} (Redo)."
+        elif jenis == "HAPUS_M1":
+            pesanan, idx, struktur_jenis, target_struktur = data
+            for i in range(len(target_struktur)):
+                if target_struktur.get(i).oid == pesanan.oid:
+                    target_struktur.hapus(i)
+                    break
+            pesan = f"Penghapusan pesanan {pesanan.oid} diulang kembali (Redo)."
+        else:
+            pesan = "Aksi tidak dikenal."
         self.undo_stack.push(aksi)
         return True, pesan
 
+    # ---------- info ----------
     def history(self):
-        """Daftar aksi dari yang terlama sampai yang terbaru (konsisten dengan undo)."""
         isi = self.undo_stack.ke_list()
         hasil = [None] * len(isi)
         for i in range(len(isi)):
