@@ -462,6 +462,7 @@ class ManajerAntrean:
             x = q.dequeue()
             if x is None:
                 break
+            x.status = "DONE"  # Sinkronisasi status M1 menjadi DONE saat didequeue
             keluar.append(x)
         geseran = self.naif.total_geseran - geseran_awal if versi == "naif" else 0
         if len(keluar) > 0:
@@ -485,6 +486,8 @@ class ManajerAntrean:
             self.melingkar.hapus_belakang()
             pesan = "Pembatalan enqueue: " + data.oid + " dikeluarkan lagi dari belakang."
         elif jenis == "DEQUEUE":
+            for x in data:
+                x.status = "ANTRE"  # Kembalikan status ke ANTRE saat undo dequeue
             self._antrean(versi).tambah_depan_banyak(data)
             pesan = (str(len(data)) + " pesanan dikembalikan ke DEPAN antrean "
                      + versi + ".")
@@ -494,6 +497,7 @@ class ManajerAntrean:
                 if target_struktur.get(i).oid == pesanan.oid:
                     target_struktur.hapus(i)
                     break
+            # Hapus juga dari antrean M2
             pesan = f"Penambahan pesanan {pesanan.oid} dibatalkan (dihapus dari {struktur_jenis})."
         elif jenis == "HAPUS_M1":
             pesanan, idx, struktur_jenis, target_struktur = data
@@ -520,7 +524,8 @@ class ManajerAntrean:
             pesan = "Enqueue dikerjakan lagi: " + data.oid + " masuk kembali ke belakang."
         elif jenis == "DEQUEUE":
             q = self._antrean(versi)
-            for _ in range(len(data)):
+            for x in data:
+                x.status = "DONE"
                 q.dequeue()
             pesan = (str(len(data)) + " pesanan keluar lagi dari antrean "
                      + versi + ".")
@@ -545,7 +550,6 @@ class ManajerAntrean:
         self.undo_stack.push(aksi)
         return True, pesan
 
-    # ---------- info ----------
     def history(self):
         isi = self.undo_stack.ke_list()
         hasil = [None] * len(isi)
