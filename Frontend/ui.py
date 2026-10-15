@@ -286,22 +286,18 @@ class MainAppWindow(tk.Tk):
                 p = m1_pesanan.Pesanan(new_oid, pelanggan, resto, menu, harga, prioritas_val, 50000, None, "ANTRE")
 
                 t0 = time.perf_counter()
-                if struktur_jenis == "Array":
-                    if prioritas_val == 1:
-                        self.array_pesanan.tambah_vip(p)
-                    elif prioritas_val == 2:
-                        self.array_pesanan.tambah_prioritas(p)
-                    else:
-                        self.array_pesanan.tambah_reguler(p)
-                else:
-                    if prioritas_val == 1:
-                        self.linked_pesanan.tambah_vip(p)
-                    elif prioritas_val == 2:
-                        self.linked_pesanan.tambah_prioritas(p)
-                    else:
-                        self.linked_pesanan.tambah_reguler(p)
                 
-                # INTEGRASI OTOMATIS KE M2 QUEUE
+                # SINKRONISASI OTOMATIS: Tambahkan ke ARRAY dan LINKED LIST sekaligus
+                if prioritas_val == 1:
+                    self.array_pesanan.tambah_vip(p)
+                    self.linked_pesanan.tambah_vip(p)
+                elif prioritas_val == 2:
+                    self.array_pesanan.tambah_prioritas(p)
+                    self.linked_pesanan.tambah_prioritas(p)
+                else:
+                    self.array_pesanan.tambah_reguler(p)
+                    self.linked_pesanan.tambah_reguler(p)
+                
                 self.manajer.enqueue(p)
 
                 target_struktur = self.array_pesanan if struktur_jenis == "Array" else self.linked_pesanan
@@ -309,8 +305,8 @@ class MainAppWindow(tk.Tk):
                 t1 = time.perf_counter()
                 elapsed = (t1 - t0) * 1000
 
-                result_lbl.config(text=f"Berhasil menambahkan pesanan {p.oid} ({prioritas_nama}) ke M1 & Antrean M2!")
-                self.log_command(f"Tambah pesanan {p.oid} ({prioritas_nama}) di {struktur_jenis} & Queue.", f"M1 & M2", elapsed)
+                result_lbl.config(text=f"Berhasil menambahkan pesanan {p.oid} ({prioritas_nama}) ke M1 (Array & Linked List) & Antrean M2!")
+                self.log_command(f"Tambah pesanan {p.oid} ({prioritas_nama}) disinkronkan ke Array, LinkedList, & Queue.", f"M1 & M2", elapsed)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
@@ -338,14 +334,30 @@ class MainAppWindow(tk.Tk):
                 source = self.array_pesanan if struktur_jenis == "Array" else self.linked_pesanan
                 
                 pesanan_dihapus = source.get(idx)
-                source.hapus(idx)
+                
+                # Hapus dari kedua struktur (Array & LinkedList) agar sinkron
+                try:
+                    for i in range(len(self.array_pesanan)):
+                        if self.array_pesanan.get(i).oid == pesanan_dihapus.oid:
+                            self.array_pesanan.hapus(i)
+                            break
+                except:
+                    pass
+
+                try:
+                    for i in range(len(self.linked_pesanan)):
+                        if self.linked_pesanan.get(i).oid == pesanan_dihapus.oid:
+                            self.linked_pesanan.hapus(i)
+                            break
+                except:
+                    pass
 
                 self.manajer.catat_hapus_m1((pesanan_dihapus, idx, struktur_jenis, source))
                 
                 t1 = time.perf_counter()
                 elapsed = (t1 - t0) * 1000
 
-                result_lbl.config(text=f"Berhasil menghapus pesanan {pesanan_dihapus.oid}. (Bisa di-undo melalui menu M2 Undo)")
+                result_lbl.config(text=f"Berhasil menghapus pesanan {pesanan_dihapus.oid} dari kedua struktur M1.")
                 self.log_command(f"Hapus pesanan indeks {idx} di {struktur_jenis}.", f"M1 - {struktur_jenis}", elapsed)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
@@ -464,7 +476,6 @@ class MainAppWindow(tk.Tk):
                 p = m1_pesanan.Pesanan(oid_unik, e_pel.get(), "kafe-teknik", "roti-bakar", 12000, 3, 28800, None, "ANTRE")
                 
                 t0 = time.perf_counter()
-                # INTEGRASI OTOMATIS KE M1 (ARRAY & LINKEDLIST) SEKALIGUS M2 QUEUE
                 self.array_pesanan.tambah_reguler(p)
                 self.linked_pesanan.tambah_reguler(p)
                 self.manajer.enqueue(p)
