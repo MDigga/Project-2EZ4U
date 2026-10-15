@@ -17,9 +17,7 @@ class MainAppWindow(tk.Tk):
         self.linked_pesanan = linked_pesanan
         self.manajer = manajer
         
-        # Penghitung sekuensial agar OID selalu mengurut rapi (200001, 200002, ...)
         self.next_oid_num = 200001
-
         self._setup_ui()
 
     def _setup_ui(self):
@@ -237,8 +235,6 @@ class MainAppWindow(tk.Tk):
         ttk.Label(control_frame, text="   Loncat ke Hal:").pack(side=tk.LEFT, padx=2)
         e_page = ttk.Entry(control_frame, width=6)
         e_page.pack(side=tk.LEFT, padx=2)
-        
-        # Bind tekan tombol Enter langsung melompat halaman
         e_page.bind("<Return>", lambda event: jump_page())
 
         btn_go = ttk.Button(control_frame, text="Go", command=jump_page)
@@ -305,13 +301,16 @@ class MainAppWindow(tk.Tk):
                     else:
                         self.linked_pesanan.tambah_reguler(p)
                 
+                # INTEGRASI OTOMATIS KE M2 QUEUE
+                self.manajer.enqueue(p)
+
                 target_struktur = self.array_pesanan if struktur_jenis == "Array" else self.linked_pesanan
                 self.manajer.catat_order((p, target_struktur, struktur_jenis))
                 t1 = time.perf_counter()
                 elapsed = (t1 - t0) * 1000
 
-                result_lbl.config(text=f"Berhasil menambahkan pesanan {p.oid} ({prioritas_nama}) pada {struktur_jenis}!")
-                self.log_command(f"Tambah pesanan {p.oid} ({prioritas_nama}) di {struktur_jenis}.", f"M1 - {struktur_jenis}", elapsed)
+                result_lbl.config(text=f"Berhasil menambahkan pesanan {p.oid} ({prioritas_nama}) ke M1 & Antrean M2!")
+                self.log_command(f"Tambah pesanan {p.oid} ({prioritas_nama}) di {struktur_jenis} & Queue.", f"M1 & M2", elapsed)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
@@ -443,7 +442,7 @@ class MainAppWindow(tk.Tk):
         ttk.Button(self.content_frame, text="REDO", command=do_redo).pack(anchor=tk.W, padx=10, pady=10)
 
     def show_queue_enqueue(self):
-        lbl = ttk.Label(self.content_frame, text="M2: Queue Enqueue (Tambah Pesanan ke Belakang Antrean)", font=("Arial", 12, "bold"))
+        lbl = ttk.Label(self.content_frame, text="M2: Queue Enqueue (Tambah Pesanan ke Belakang Antrean & M1)", font=("Arial", 12, "bold"))
         lbl.pack(anchor=tk.W, padx=10, pady=5)
 
         form_frame = ttk.Frame(self.content_frame)
@@ -462,15 +461,20 @@ class MainAppWindow(tk.Tk):
                 from backend import m1_pesanan
                 self.next_oid_num += 1
                 oid_unik = f"0-{self.next_oid_num:06d}"
-                p = m1_pesanan.Pesanan(oid_unik, e_pel.get(), "kafe-teknik", "roti-bakar", 12000, 2, 28800, None, "ANTRE")
+                p = m1_pesanan.Pesanan(oid_unik, e_pel.get(), "kafe-teknik", "roti-bakar", 12000, 3, 28800, None, "ANTRE")
+                
                 t0 = time.perf_counter()
+                # INTEGRASI OTOMATIS KE M1 (ARRAY & LINKEDLIST) SEKALIGUS M2 QUEUE
+                self.array_pesanan.tambah_reguler(p)
+                self.linked_pesanan.tambah_reguler(p)
                 self.manajer.enqueue(p)
+                
                 t1 = time.perf_counter()
                 elapsed = (t1 - t0) * 1000
 
                 stats = dict(self.manajer.stats())
-                res_lbl.config(text=f"{p.oid} masuk ke barisan belakang pada KEDUA antrean.\nPanjang sekarang: naif {stats['queue_len_naif']}, circular {stats['queue_len_circular']}.")
-                self.log_command(f"Queue enqueue {p.oid}", "M2 - queue", elapsed)
+                res_lbl.config(text=f"{p.oid} masuk ke antrean M2 & tersinkronisasi ke M1.\nPanjang sekarang: naif {stats['queue_len_naif']}, circular {stats['queue_len_circular']}.")
+                self.log_command(f"Queue enqueue {p.oid} terintegrasi M1 & M2", "M1 & M2", elapsed)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
@@ -494,7 +498,7 @@ class MainAppWindow(tk.Tk):
         sub_frame = ttk.Frame(self.content_frame)
         sub_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        cols = ("No", "OID", "Pelanggan", "Resto", "Menu", "Masuk")
+        cols = ("No", "OID", "Pelanggan", "Resto", "Menu", "Status")
         tree = ttk.Treeview(sub_frame, columns=cols, show="headings", height=10)
         for c in cols:
             tree.heading(c, text=c)
@@ -517,14 +521,14 @@ class MainAppWindow(tk.Tk):
 
                 stats = dict(self.manajer.stats())
                 if versi == "naif":
-                    res_lbl.config(text=f"{len(keluar)} pesanan keluar dari antrean naif. Total geseran: {geseran:,}. Sisa antrean: {stats['queue_len_naif']}.")
+                    res_lbl.config(text=f"{len(keluar)} pesanan keluar dari antrean naif & status M1 jadi DONE. Total geseran: {geseran:,}.")
                     self.log_command(f"Queue dequeue naif ({n} pesanan, {geseran} geseran)", "M2 - queue naif", elapsed)
                 else:
-                    res_lbl.config(text=f"{len(keluar)} pesanan keluar dari antrean circular. Tidak ada elemen yang digeser. Sisa antrean: {stats['queue_len_circular']}.")
+                    res_lbl.config(text=f"{len(keluar)} pesanan keluar dari circular queue & status M1 jadi DONE.")
                     self.log_command(f"Queue dequeue circular ({n} pesanan)", "M2 - queue circular", elapsed)
 
                 for i, p in enumerate(keluar):
-                    tree.insert("", tk.END, values=(i+1, p.oid, p.pelanggan, p.resto, p.menu, p.t_masuk_detik))
+                    tree.insert("", tk.END, values=(i+1, p.oid, p.pelanggan, p.resto, p.menu, p.status))
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
